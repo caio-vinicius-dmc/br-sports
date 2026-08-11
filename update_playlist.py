@@ -1,6 +1,6 @@
 import urllib.request
 
-# URLs oficiais: Mantemos as duas fontes para não perder os canais fechados
+# URLs oficiais usadas pelo projeto iptv-org
 urls = [
     "https://iptv-org.github.io/iptv/countries/br.m3u",
     "https://iptv-org.github.io/iptv/categories/sports.m3u",
@@ -15,7 +15,7 @@ for url in urls:
   except Exception as e:
     print(f"Erro ao baixar {url}: {e}")
 
-# Palavras-chave estritas de esporte
+# Termos essenciais para abranger todo o esporte nacional e canais fechados populares
 include_keywords = [
     "sport",
     "espn",
@@ -25,16 +25,17 @@ include_keywords = [
     "conmebol",
     "f1",
     "sportv",
-    "tnt sports",
+    "tnt",
     "gazeta esportiva",
     "paramount",
     "cazetv",
     "nsports",
     "fifa+",
     "ge fast",
+    "futebol",
 ]
 
-# Termos bloqueados (lixo, filmes, mtv, etc.)
+# Termos para bloquear conteúdos estrangeiros ou indesejados que não têm relação com o Brasil
 exclude_keywords = [
     "smithsonian",
     "voyager",
@@ -45,6 +46,21 @@ exclude_keywords = [
     "mtv",
     "nickelodeon",
     "nick jr",
+    # Bloqueia idiomas estrangeiros comuns que poluem a lista global de esportes:
+    "russia",
+    "ukraine",
+    "greek",
+    "cyprus",
+    "pk sports",
+    "india",
+    "arab",
+    "turkey",
+    "polish",
+    "hungary",
+    "romania",
+    "czech",
+    "vietnam",
+    "china",
 ]
 
 filtered_playlist = ["#EXTM3U\n"]
@@ -56,25 +72,24 @@ for line in lines:
   if line.startswith("#EXTINF:"):
     line_lower = line.lower()
 
-    # FILTRAGEM DE NACIONALIDADE:
-    # O canal DEVE pertencer ao Brasil (.br, @br, ou ter menções claras ao Brasil/Português do Brasil)
-    # Exceção feita para canais globais como CazeTV ou FIFA+ em português se desejado,
-    # mas focamos nas tags oficiais do iptv-org que identificam o país.
-    is_brazil = (
-        ".br" in line_lower
-        or "@br" in line_lower
-        or "portuguese" in line_lower
-        or " brazil" in line_lower
-    )
-
-    # Se a linha veio da lista de esportes global, precisamos ser rigorosos se ela é brasileira.
-    # (A lista do br.m3u inteira já é do Brasil, mas a sports.m3u mistura o mundo todo).
-    # Vamos validar se tem esporte, se não é excluído e se é do Brasil.
     is_excluded = any(ex in line_lower for ex in exclude_keywords)
     is_included = any(inc in line_lower for inc in include_keywords)
 
-    # Se veio do arq do Brasil (br.m3u) ou se passou no crivo de nacionalidade na lista global:
-    if is_included and not is_excluded and is_brazil:
+    # Se o canal for do Brasil (tem .br / @br / portuguese) OU se for um canal fechado
+    # global importante (como Premiere, TNT Sports, ESPN) que queremos capturar:
+    is_target_channel = (
+        "br" in line_lower
+        or "portuguese" in line_lower
+        or "premiere" in line_lower
+        or "tnt" in line_lower
+        or "espn" in line_lower
+        or "sportv" in line_lower
+        or "combate" in line_lower
+        or "bandsports" in line_lower
+        or "cazetv" in line_lower
+    )
+
+    if is_included and not is_excluded and is_target_channel:
       save_next = True
       current_inf = line
     else:
@@ -87,11 +102,11 @@ for line in lines:
         added_links.add(line)
     save_next = False
 
-# Salva o arquivo final limpo
+# Salva o resultado atualizado
 with open("br-sports.m3u", "w", encoding="utf-8") as f:
   f.writelines(filtered_playlist)
 
 print(
-    f"Playlist 100% brasileira gerada com sucesso! Total de linhas:"
+    f"Playlist ajustada com sucesso! Total de canais salvos:"
     f" {len(filtered_playlist)}"
 )
