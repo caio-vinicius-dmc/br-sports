@@ -1,21 +1,13 @@
 import urllib.request
 
-# URLs oficiais usadas pelo projeto iptv-org
-urls = [
-    "https://iptv-org.github.io/iptv/countries/br.m3u",
-    "https://iptv-org.github.io/iptv/categories/sports.m3u",
-]
+# Usamos APENAS a lista oficial do Brasil, garantindo zero conteúdo estrangeiro
+url_br = "https://iptv-org.github.io/iptv/countries/br.m3u"
 
-lines = []
-for url in urls:
-  print(f"Baixando fonte: {url}")
-  try:
-    req = urllib.request.urlopen(url)
-    lines.extend([line.decode("utf-8") for line in req.readlines()])
-  except Exception as e:
-    print(f"Erro ao baixar {url}: {e}")
+print("Baixando lista oficial do Brasil...")
+req = urllib.request.urlopen(url_br)
+lines = [line.decode("utf-8") for line in req.readlines()]
 
-# Termos essenciais para abranger todo o esporte nacional e canais fechados populares
+# Palavras-chave amplas para capturar tudo que é esporte ou canais esportivos no Brasil
 include_keywords = [
     "sport",
     "espn",
@@ -24,7 +16,6 @@ include_keywords = [
     "combate",
     "conmebol",
     "f1",
-    "sportv",
     "tnt",
     "gazeta esportiva",
     "paramount",
@@ -35,78 +26,46 @@ include_keywords = [
     "futebol",
 ]
 
-# Termos para bloquear conteúdos estrangeiros ou indesejados que não têm relação com o Brasil
+# Exclui termos que não são de esporte e que possam vir na lista do Brasil
 exclude_keywords = [
-    "smithsonian",
-    "voyager",
-    "jornada nas estrelas",
-    "pluto tv",
-    "comedy central",
     "filmes",
-    "mtv",
-    "nickelodeon",
-    "nick jr",
-    # Bloqueia idiomas estrangeiros comuns que poluem a lista global de esportes:
-    "russia",
-    "ukraine",
-    "greek",
-    "cyprus",
-    "pk sports",
-    "india",
-    "arab",
-    "turkey",
-    "polish",
-    "hungary",
-    "romania",
-    "czech",
-    "vietnam",
-    "china",
+    "series",
+    "comedy",
+    "desenho",
+    "gospel",
+    "noticias",
+    "jornal",
 ]
 
 filtered_playlist = ["#EXTM3U\n"]
 save_next = False
 current_inf = ""
-added_links = set()
 
 for line in lines:
   if line.startswith("#EXTINF:"):
     line_lower = line.lower()
 
-    is_excluded = any(ex in line_lower for ex in exclude_keywords)
-    is_included = any(inc in line_lower for inc in include_keywords)
+    # Verifica se o canal é da categoria de esportes ou se o nome contém alguma palavra-chave esportiva
+    is_sports_group = 'group-title="sports"' in line_lower
+    has_keyword = any(keyword in line_lower for keyword in include_keywords)
+    is_excluded = any(exclude in line_lower for exclude in exclude_keywords)
 
-    # Se o canal for do Brasil (tem .br / @br / portuguese) OU se for um canal fechado
-    # global importante (como Premiere, TNT Sports, ESPN) que queremos capturar:
-    is_target_channel = (
-        "br" in line_lower
-        or "portuguese" in line_lower
-        or "premiere" in line_lower
-        or "tnt" in line_lower
-        or "espn" in line_lower
-        or "sportv" in line_lower
-        or "combate" in line_lower
-        or "bandsports" in line_lower
-        or "cazetv" in line_lower
-    )
-
-    if is_included and not is_excluded and is_target_channel:
+    if (is_sports_group or has_keyword) and not is_excluded:
       save_next = True
       current_inf = line
     else:
       save_next = False
   elif save_next:
     if line.startswith("http"):
-      if line not in added_links:
-        filtered_playlist.append(current_inf)
-        filtered_playlist.append(line)
-        added_links.add(line)
+      filtered_playlist.append(current_inf)
+      filtered_playlist.append(line)
     save_next = False
 
-# Salva o resultado atualizado
+# Salva o resultado limpo
 with open("br-sports.m3u", "w", encoding="utf-8") as f:
   f.writelines(filtered_playlist)
 
 print(
-    f"Playlist ajustada com sucesso! Total de canais salvos:"
-    f" {len(filtered_playlist)}"
+    f"Playlist nacional filtrada com sucesso! Total de canais:"
+    f" {len(filtered_playlist) // 2}"
 )
