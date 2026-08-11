@@ -21,10 +21,12 @@ jobs:
 
     - name: Executar script de filtragem
       run: python update_playlist.py
-
+      
     - name: Salvar alterações no repositório
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email "actions@github.com"
         git add br-sports.m3u
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Atualização automática da playlist de esportes" && git push)
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Atualização automática da playlist de esportes" && git push origin main)
