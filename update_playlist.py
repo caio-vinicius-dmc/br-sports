@@ -1,85 +1,81 @@
 import urllib.request
 
-# URL oficial da lista de canais do Brasil no projeto iptv-org
-url_br = "https://iptv-org.github.io/iptv/countries/br.m3u"
-
-print("Baixando lista oficial do Brasil...")
-try:
-    req = urllib.request.urlopen(url_br)
-    lines = [line.decode("utf-8") for line in req.readlines()]
-except Exception as e:
-    print(f"Erro ao baixar a lista: {e}")
-    lines = []
-
-# Palavras-chave para identificar canais de esportes brasileiros na lista
-include_keywords = [
-    "sport",
-    "espn",
-    "bandsports",
-    "combate",
-    "conmebol",
-    "f1",
-    "gazeta esportiva",
-    "paramount",
-    "cazetv",
-    "nsports",
-    "fifa+",
-    "ge fast",
-    "futebol",
+# Varreremos as duas maiores listas do projeto para garantir que nada passe despercebido
+urls = [
+    "https://iptv-org.github.io/iptv/countries/br.m3u",
+    "https://iptv-org.github.io/iptv/categories/sports.m3u"
 ]
 
-# Termos para bloquear conteúdos que não são de esporte
-exclude_keywords = [
-    "filmes",
-    "series",
-    "comedy",
-    "desenho",
-    "gospel",
-    "noticias",
-    "jornal",
-]
+lines = []
+for url in urls:
+    print(f"Baixando fonte: {url}")
+    try:
+        req = urllib.request.urlopen(url)
+        lines.extend([line.decode("utf-8") for line in req.readlines()])
+    except Exception as e:
+        print(f"Erro ao baixar {url}: {e}")
 
 filtered_playlist = ["#EXTM3U\n"]
-save_next = False
 added_links = set()
+save_next = False
+current_inf = ""
 
 for line in lines:
     if line.startswith("#EXTINF:"):
         line_lower = line.lower()
         
-        # Verifica se o canal é da categoria de esportes ou contém termos esportivos
-        is_sports_group = 'group-title="sports"' in line_lower
-        has_keyword = any(keyword in line_lower for keyword in include_keywords)
-        is_excluded = any(exclude in line_lower for exclude in exclude_keywords)
+        # 1. Identifica se é conteúdo de esporte
+        is_sport = 'group-title="sports"' in line_lower or "sport" in line_lower or "futebol" in line_lower
         
-        if (is_sports_group or has_keyword) and not is_excluded:
+        # 2. Lista das marcas premium e nacionais que você quer caçar
+        is_premium_br = any(marca in line_lower for marca in [
+            "premiere", "sportv", "tnt sports", "combate", "bandsports", 
+            "cazetv", "nsports", "ge fast", "espn"
+        ])
+        
+        # 3. Confirmação de nacionalidade brasileira
+        is_br = ".br" in line_lower or "@br" in line_lower or "brazil" in line_lower or "portuguese" in line_lower
+        
+        # 4. Trava de segurança absoluta contra canais estrangeiros (Espanha, Argentina, EUA, etc)
+        is_foreign = any(gringo in line_lower for gringo in [
+            ".ar", ".mx", ".us", ".uk", ".es", ".cl", ".co", ".pe", ".uy", ".pt",
+            "premier league", "pluto tv", "smithsonian", "voyager", "mtv"
+        ])
+        
+        # --- MOTOR DE DECISÃO ---
+        is_valid = False
+        
+        # Regra A: Se é do Brasil E (é esporte OU marca famosa), tá aprovado.
+        if is_br and (is_sport or is_premium_br):
+            is_valid = True
+            
+        # Regra B: Se tem o nome de uma marca famosa (ex: Premiere), mas o repositório 
+        # esqueceu de colocar a tag ".br", a gente aprova DESDE QUE não tenha tag gringa (.us, .ar).
+        elif is_premium_br and not is_foreign:
+            is_valid = True
+            
+        # Regra C: O bloqueio final. Se caiu no filtro de país estrangeiro, bloqueia.
+        if is_foreign and not is_br:
+            is_valid = False
+
+        if is_valid:
             save_next = True
             current_inf = line
         else:
             save_next = False
+            
     elif save_next:
         if line.startswith("http"):
+            # O 'set' (added_links) garante que não teremos canais duplicados 
+            # já que estamos buscando em duas listas diferentes.
             if line not in added_links:
                 filtered_playlist.append(current_inf)
                 filtered_playlist.append(line)
                 added_links.add(line)
         save_next = False
 
-# =====================================================================
-# ÁREA DE CANAIS MANUAIS (Opcional)
-# Como o iptv-org não indexa Premiere e TNT abertos, você pode colá-los aqui:
-# =====================================================================
-canais_manuais = """#EXTINF:-1 tvg-id="Premiere.br" group-title="Sports",Premiere (1080p)
-#COLOQUE_SEU_LINK_DO_PREMIERE_AQUI
-#EXTINF:-1 tvg-id="TNTSports.br" group-title="Sports",TNT Sports (1080p)
-#COLOQUE_SEU_LINK_DO_TNT_AQUI
-"""
-
-# Se quiser ativar os manuais, basta descomentar a linha abaixo:
-# filtered_playlist.append(canais_manuais)
-
-# Salva o resultado final no arquivo m3u que o seu GitHub vai hospedar
+# Salva o arquivo final
 with open("br-sports.m3u", "w", encoding="utf-8") as f:
     f.writelines(filtered_playlist)
 
-print(f"Playlist gerada com sucesso! Total de linhas salvas: {len(filtered_playlist)}")
+print(f"Playlist extraída! Total de links válidos salvos: {len(filtered_playlist) // 2}")
