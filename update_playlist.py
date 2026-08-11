@@ -1,69 +1,67 @@
 import urllib.request
 import re
 
-# Usamos a categoria global de esportes combinada com a do Brasil
-urls = [
-    "https://iptv-org.github.io/iptv/countries/br.m3u",
-    "https://iptv-org.github.io/iptv/categories/sports.m3u"
-]
+# Baixa a lista mestre global do iptv-org
+url = "https://iptv-org.github.io/iptv/index.m3u"
 
-lines = []
-for url in urls:
-    try:
-        req = urllib.request.urlopen(url)
-        lines.extend([line.decode("utf-8") for line in req.readlines()])
-    except Exception as e:
-        print(f"Erro ao baixar {url}: {e}")
+print("Baixando a lista mestre completa...")
+try:
+    req = urllib.request.urlopen(url)
+    lines = [line.decode("utf-8") for line in req.readlines()]
+except Exception as e:
+    print(f"Erro ao baixar a lista: {e}")
+    lines = []
 
 filtered_playlist = ["#EXTM3U\n"]
 added_links = set()
 save_next = False
 current_inf = ""
 
+# Marcas principais permitidas globalmente (mesmo que venham de fora)
+marcas_globais = ["sportv", "espn", "premiere", "tnt", "combate", "bandsports", "cazetv", "nsports", "ge fast"]
+
 for line in lines:
     if line.startswith("#EXTINF:"):
         line_lower = line.lower()
         
-        # Pega tudo o que é esporte ou contenha marcas esportivas globais e nacionais
+        # 1. Verifica se é um canal nacional/português ou focado no Brasil
+        is_br = (
+            'tvg-country="br"' in line_lower or 
+            '.br"' in line_lower or 
+            '.br@' in line_lower or 
+            'portuguese' in line_lower
+        )
+        
+        # 2. Verifica se é da categoria de esportes
         is_sport = 'group-title="sports"' in line_lower or "sport" in line_lower or "futebol" in line_lower
         
-        # Garante a captura de redes de esporte e variações de premiere/tnt esportes
-        has_target = bool(re.search(r'\b(sportv|espn|premiere|tnt|combate|bandsports|cazetv|nsports|ge fast|futebol|fox sports|paramount)\b', line_lower))
+        # 3. Verifica se o nome do canal bate exatamente com as marcas globais de interesse
+        tem_marca_global = bool(re.search(r'\b(' + '|'.join(marcas_globais) + r')\b', line_lower))
         
-        # Filtra para trazer o Brasil e canais de esporte gerais úteis
-        is_br = 'tvg-country="br"' in line_lower or '.br"' in line_lower or '.br@' in line_lower or 'portuguese' in line_lower
-        
-        if is_sport or has_target or is_br:
-            save_next = True
-            current_inf = line
+        # Regra de aprovação limpa:
+        # - Ou é um canal de esporte genuinamente brasileiro/português
+        # - Ou é uma das marcas globais permitidas (sem puxar lixo de outras categorias gringas)
+        if (is_br and is_sport) or tem_marca_global:
+            # Trava de segurança para impedir lixo internacional que não seja brasileiro
+            if not is_br and not any(m in line_lower for m in ["espn", "cazetv", "premiere", "sportv", "tnt"]):
+                save_next = False
+            else:
+                save_next = True
+                current_inf = line
         else:
             save_next = False
             
     elif save_next:
         if line.startswith("http"):
+            # Evita links duplicados
             if line not in added_links:
                 filtered_playlist.append(current_inf)
                 filtered_playlist.append(line)
                 added_links.add(line)
         save_next = False
 
-# =====================================================================
-# INJEÇÃO AUTOMÁTICA DOS SEUS CANAIS DE PREMIERE E TNT ESPORTES
-# Como o GitHub remove canais pagos das listas públicas por DMCA,
-# coloque os seus links funcionais aqui embaixo. O robô vai embutir
-# eles na sua playlist todos os dias de forma automatizada.
-# =====================================================================
-canais_extras_obrigatorios = """
-#EXTINF:-1 tvg-id="PremiereClube.br" group-title="Sports",Premiere (Futebol Nacional)
-http://SEU_LINK_DO_PREMIERE_AQUI.m3u8
-#EXTINF:-1 tvg-id="TNTSports.br" group-title="Sports",TNT Sports Brasil
-http://SEU_LINK_DA_TNT_SPORTS_AQUI.m3u8
-"""
-
-filtered_playlist.append(canais_extras_obrigatorios)
-
-# Salva o arquivo final no repositório
+# Salva o arquivo final limpo (sem linhas extras no final)
 with open("br-sports.m3u", "w", encoding="utf-8") as f:
     f.writelines(filtered_playlist)
 
-print(f"Processo finalizado! Total de canais gerados: {len(filtered_playlist) // 2}")
+print(f"Processo concluído! Total de canais salvos: {len(filtered_playlist) // 2}")
