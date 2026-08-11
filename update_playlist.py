@@ -7,8 +7,8 @@ print("Baixando lista do Brasil...")
 req = urllib.request.urlopen(url_br)
 lines = [line.decode("utf-8") for line in req.readlines()]
 
-# Palavras-chave para identificar canais de esportes brasileiros
-keywords = [
+# Palavras-chave estritas para canais de esporte no Brasil (incluindo Premiere, TNT Sports, etc.)
+include_keywords = [
     "sport",
     "espn",
     "bandsports",
@@ -17,8 +17,26 @@ keywords = [
     "conmebol",
     "f1",
     "sportv",
+    "tnt sports",
     "gazeta esportiva",
     "paramount",
+    "cazetv",
+    "nsports",
+    "fifa+",
+    "ge fast",
+]
+
+# Termos que devem ser BLOQUEADOS caso apareçam (para limpar filmes, séries, pluto tv indesejada, etc.)
+exclude_keywords = [
+    "smithsonian",
+    "voyager",
+    "jornada nas estrelas",
+    "pluto tv",
+    "comedy central",
+    "filmes",
+    "mtv",
+    "nickelodeon",
+    "nick jr",
 ]
 
 filtered_playlist = ["#EXTM3U\n"]
@@ -27,8 +45,15 @@ current_inf = ""
 
 for line in lines:
   if line.startswith("#EXTINF:"):
-    # Verifica se alguma palavra-chave está presente no título/metadados do canal
-    if any(keyword in line.lower() for keyword in keywords):
+    line_lower = line.lower()
+
+    # Verifica se tem alguma palavra proibida
+    is_excluded = any(ex in line_lower for ex in exclude_keywords)
+
+    # Verifica se tem alguma palavra de esporte desejada
+    is_included = any(inc in line_lower for inc in include_keywords)
+
+    if is_included and not is_excluded:
       save_next = True
       current_inf = line
     else:
@@ -39,11 +64,8 @@ for line in lines:
       filtered_playlist.append(line)
     save_next = False
 
-# Salva o resultado filtrado em um novo arquivo m3u
+# Salva o resultado refinado
 with open("br-sports.m3u", "w", encoding="utf-8") as f:
   f.writelines(filtered_playlist)
 
-print(
-    f"Playlist gerada com sucesso! Total de linhas salvas:"
-    f" {len(filtered_playlist)}"
-)
+print(f"Playlist refinada com sucesso! Total de linhas: {len(filtered_playlist)}")
